@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -17,7 +18,9 @@ import {
   User,
   FileText,
   Camera,
-  Briefcase
+  Briefcase,
+  Tag,
+  X
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -28,16 +31,42 @@ const WorkerOnboarding = () => {
     age: "",
     address: "",
     skills: "",
+    selectedTags: [] as string[],
     aadhaarNumber: "",
     panNumber: "",
     profilePhoto: null as File | null,
     aadhaarPhoto: null as File | null,
     panPhoto: null as File | null,
   });
+
+  // Available skill tags
+  const availableTags = [
+    "House Cleaning", "Cooking", "Child Care", "Elderly Care", "Pet Care",
+    "Gardening", "Plumbing", "Electrical Work", "Carpentry", "Painting",
+    "Laundry", "Ironing", "Shopping", "Driving", "Delivery",
+    "Office Work", "Data Entry", "Teaching", "Tutoring", "Translation",
+    "Event Planning", "Photography", "Beauty Services", "Massage", "Yoga"
+  ];
   const [verificationStatus, setVerificationStatus] = useState<"pending" | "processing" | "verified" | "rejected">("pending");
 
-  const totalSteps = 4;
+  const totalSteps = 5;
   const progress = (step / totalSteps) * 100;
+
+  const handleTagToggle = (tag: string) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedTags: prev.selectedTags.includes(tag)
+        ? prev.selectedTags.filter(t => t !== tag)
+        : [...prev.selectedTags, tag]
+    }));
+  };
+
+  const removeTag = (tag: string) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedTags: prev.selectedTags.filter(t => t !== tag)
+    }));
+  };
 
   const handleNext = () => {
     if (step < totalSteps) {
@@ -134,6 +163,74 @@ const WorkerOnboarding = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
+                <Tag className="w-5 h-5" />
+                Select Your Skills
+              </CardTitle>
+              <CardDescription>
+                Choose the services you can provide. This helps match you with relevant jobs.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Selected Tags */}
+              {formData.selectedTags.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Selected Skills ({formData.selectedTags.length})</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {formData.selectedTags.map((tag) => (
+                      <Badge key={tag} variant="default" className="flex items-center gap-1">
+                        {tag}
+                        <X 
+                          className="w-3 h-3 cursor-pointer hover:bg-white/20 rounded-full" 
+                          onClick={() => removeTag(tag)}
+                        />
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Available Tags */}
+              <div className="space-y-2">
+                <Label>Available Skills</Label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto border rounded-lg p-4">
+                  {availableTags.map((tag) => (
+                    <div key={tag} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={tag}
+                        checked={formData.selectedTags.includes(tag)}
+                        onCheckedChange={() => handleTagToggle(tag)}
+                      />
+                      <Label 
+                        htmlFor={tag} 
+                        className="text-sm cursor-pointer flex-1"
+                      >
+                        {tag}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-primary-light p-4 rounded-lg border border-primary/20">
+                <div className="flex items-start gap-2">
+                  <Tag className="w-5 h-5 text-primary mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium">Why select skills?</p>
+                    <p className="text-xs text-muted-foreground">
+                      Selecting your skills helps us show you relevant job opportunities and helps clients find the right person for their needs.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+
+      case 3:
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
                 <Camera className="w-5 h-5" />
                 Profile Photo
               </CardTitle>
@@ -164,7 +261,7 @@ const WorkerOnboarding = () => {
           </Card>
         );
 
-      case 3:
+      case 4:
         return (
           <Card>
             <CardHeader>
@@ -230,7 +327,7 @@ const WorkerOnboarding = () => {
           </Card>
         );
 
-      case 4:
+      case 5:
         return (
           <Card>
             <CardHeader>
@@ -256,6 +353,7 @@ const WorkerOnboarding = () => {
                     <div className="space-y-2 text-sm">
                       <p><strong>Name:</strong> {formData.fullName}</p>
                       <p><strong>Age:</strong> {formData.age}</p>
+                      <p><strong>Skills:</strong> {formData.selectedTags.join(", ")}</p>
                       <p><strong>Aadhaar:</strong> ****-****-{formData.aadhaarNumber.slice(-4)}</p>
                       <p><strong>PAN:</strong> ******{formData.panNumber.slice(-4)}</p>
                     </div>
@@ -376,7 +474,8 @@ const WorkerOnboarding = () => {
                 onClick={handleNext}
                 disabled={
                   (step === 1 && (!formData.fullName || !formData.age || !formData.address)) ||
-                  (step === 3 && (!formData.aadhaarNumber || !formData.panNumber))
+                  (step === 2 && formData.selectedTags.length === 0) ||
+                  (step === 4 && (!formData.aadhaarNumber || !formData.panNumber))
                 }
               >
                 Next

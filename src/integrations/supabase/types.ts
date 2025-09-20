@@ -14,7 +14,129 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      user_profiles: {
+        Row: {
+          id: string
+          user_id: string
+          full_name: string | null
+          age: number | null
+          address: string | null
+          skills: string[]
+          phone: string | null
+          profile_photo_url: string | null
+          aadhaar_number: string | null
+          pan_number: string | null
+          verification_status: 'pending' | 'verified' | 'rejected'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          full_name?: string | null
+          age?: number | null
+          address?: string | null
+          skills?: string[]
+          phone?: string | null
+          profile_photo_url?: string | null
+          aadhaar_number?: string | null
+          pan_number?: string | null
+          verification_status?: 'pending' | 'verified' | 'rejected'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          full_name?: string | null
+          age?: number | null
+          address?: string | null
+          skills?: string[]
+          phone?: string | null
+          profile_photo_url?: string | null
+          aadhaar_number?: string | null
+          pan_number?: string | null
+          verification_status?: 'pending' | 'verified' | 'rejected'
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      jobs: {
+        Row: {
+          id: string
+          client_id: string
+          title: string
+          description: string
+          location: string
+          required_tags: string[]
+          amount: number
+          duration: string
+          scheduled_date: string
+          scheduled_time: string
+          status: 'available' | 'assigned' | 'in_progress' | 'completed' | 'cancelled'
+          worker_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          client_id: string
+          title: string
+          description: string
+          location: string
+          required_tags: string[]
+          amount: number
+          duration: string
+          scheduled_date: string
+          scheduled_time: string
+          status?: 'available' | 'assigned' | 'in_progress' | 'completed' | 'cancelled'
+          worker_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          client_id?: string
+          title?: string
+          description?: string
+          location?: string
+          required_tags?: string[]
+          amount?: number
+          duration?: string
+          scheduled_date?: string
+          scheduled_time?: string
+          status?: 'available' | 'assigned' | 'in_progress' | 'completed' | 'cancelled'
+          worker_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      job_applications: {
+        Row: {
+          id: string
+          job_id: string
+          worker_id: string
+          status: 'pending' | 'accepted' | 'rejected'
+          applied_at: string
+          message: string | null
+        }
+        Insert: {
+          id?: string
+          job_id: string
+          worker_id: string
+          status?: 'pending' | 'accepted' | 'rejected'
+          applied_at?: string
+          message?: string | null
+        }
+        Update: {
+          id?: string
+          job_id?: string
+          worker_id?: string
+          status?: 'pending' | 'accepted' | 'rejected'
+          applied_at?: string
+          message?: string | null
+        }
+      }
     }
     Views: {
       [_ in never]: never
