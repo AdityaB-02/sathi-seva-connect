@@ -76,7 +76,7 @@ export class SupabaseService {
 
   static async updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile | null> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('user_profiles')
         .update(updates)
         .eq('user_id', userId)
@@ -200,12 +200,127 @@ export class SupabaseService {
     return R * c;
   }
 
+
+  // Job Application Operations
+  static async applyToJob(jobId: string, workerId: string): Promise<{ application: JobApplication | null; employer: { id: string; name: string | null } | null }> {
+    try {
+      const { data: job, error: jobError } = await (supabase as any)
+        .from('jobs')
+        .select('id, client_id')
+        .eq('id', jobId)
+        .single();
+
+      if (jobError || !job) {
+        console.error('applyToJob: cannot find job', jobError);
+        return { application: null, employer: null };
+      }
+
+      const employer = await SupabaseService.getEmployerInfo(job.client_id);
+      const message = `Applied to job: ${jobId}`;
+
+      const { data: application, error } = await (supabase as any)
+        .from('job_applications')
+        .insert([{ 
+          job_id: jobId, 
+          worker_id: workerId, 
+          status: 'pending', 
+          message,
+          applied_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('applyToJob: insert failed', error);
+        return { application: null, employer };
+      }
+
+      return { application, employer };
+    } catch (err) {
+      console.error('applyToJob: exception', err);
+      return { application: null, employer: null };
+    }
+  }
+
+  static async getEmployerInfo(clientId: string): Promise<{ id: string; name: string | null } | null> {
+    try {
+      const { data, error } = await (supabase as any)
+        .from('user_profiles')
+        .select('full_name')
+        .eq('user_id', clientId)
+        .single();
+      
+      if (error) return { id: clientId, name: null };
+      return { id: clientId, name: data?.full_name ?? null };
+    } catch {
+      return { id: clientId, name: null };
+    }
+  }
+
+  static async getUserApplications(workerId: string): Promise<JobApplication[]> {
+    const { data, error } = await supabase
+      .from('job_applications')
+      .select('*')
+      .eq('worker_id', workerId)
+      .order('applied_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching user applications:', error);
+      return [];
+    }
+
+    return data || [];
+  }
+
+  static async getJobsByIds(ids: string[]): Promise<Job[]> {
+    if (!ids.length) return [];
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('*')
+      .in('id', ids);
+    if (error) {
+      console.error('Error fetching jobs by ids:', error);
+      return [];
+    }
+    return (data || []) as Job[];
+  }
+
+  static async getJobApplications(jobId: string): Promise<JobApplication[]> {
+    const { data, error } = await supabase
+      .from('job_applications')
+      .select('*')
+      .eq('job_id', jobId)
+      .order('applied_at', { ascending: false });
+    if (error) {
+      console.error('Error fetching job applications:', error);
+      return [];
+    }
+    return data || [];
+  }
+
+  static async updateApplicationStatus(applicationId: string, status: 'accepted' | 'rejected'): Promise<JobApplication | null> {
+    const { data, error } = await (supabase as any)
+      .from('job_applications')
+      .update({ status })
+      .eq('id', applicationId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating application status:', error);
+      return null;
+    }
+
+    return data;
+  }
+
+  // Get jobs by user skills
   static async getJobsByUserSkills(userSkills: string[]): Promise<Job[]> {
     try {
       const { data, error } = await supabase
         .from('jobs')
         .select('*')
-        .eq('status', 'open')
+        .eq('status', 'available')
         .overlaps('required_tags', userSkills)
         .order('created_at', { ascending: false });
 
@@ -222,7 +337,7 @@ export class SupabaseService {
   }
 
   // Get user jobs (jobs applied to or created by user)
-  static async getUserJobs(userId: string) {
+  static async getUserJobs(userId: string): Promise<Job[]> {
     const { data, error } = await supabase
       .from('jobs')
       .select('*')
@@ -253,7 +368,7 @@ export class SupabaseService {
       .from('jobs')
       .insert([{
         ...jobData,
-        status: 'open',
+        status: 'available',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }])
@@ -263,53 +378,6 @@ export class SupabaseService {
     if (error) {
       console.error('Error creating job:', error);
       throw error;
-    }
-
-    return data;
-  }
-
-  static async updateJob(jobId: string, updates: any) {
-    const { data, error } = await (supabase as any)
-      .from('jobs')
-      .update(updates)
-      .eq('id', jobId)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating job:', error);
-      return null;
-    }
-
-    return data;
-  }
-
-  static async getUserApplications(workerId: string): Promise<JobApplication[]> {
-    const { data, error } = await supabase
-      .from('job_applications')
-      .select('*')
-      .eq('worker_id', workerId)
-      .order('applied_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching user applications:', error);
-      return [];
-    }
-
-    return data || [];
-  }
-
-  static async updateApplicationStatus(applicationId: string, status: 'accepted' | 'rejected'): Promise<JobApplication | null> {
-    const { data, error } = await supabase
-      .from('job_applications')
-      .update({ status })
-      .eq('id', applicationId)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating application status:', error);
-      return null;
     }
 
     return data;

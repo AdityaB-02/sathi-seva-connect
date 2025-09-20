@@ -39,6 +39,9 @@ const Dashboard = () => {
   const [myJobs, setMyJobs] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [showJobCreationModal, setShowJobCreationModal] = useState(false);
+  const [userApplications, setUserApplications] = useState<any[]>([]);
+  const [scheduleJobs, setScheduleJobs] = useState<any[]>([]);
+  const [applyingMap, setApplyingMap] = useState<Record<string, boolean>>({});
 
   // Fetch user profile and jobs data
   useEffect(() => {
@@ -71,20 +74,20 @@ const Dashboard = () => {
           const jobs = await SupabaseService.getJobsByUserSkills(profile.skills);
           setAvailableJobs(jobs);
         } else {
-          // Fetch available jobs (excluding user's own jobs)
-          let jobs = [];
-          if (profile?.city || profile?.locality) {
-            // Get jobs in same locality if location is available
-            jobs = await SupabaseService.getJobsInSameLocality(
-              user.id, 
-              profile.city || '', 
-              profile.locality || ''
-            );
-          } else {
-            // Fallback to all available jobs (excluding own)
-            jobs = await SupabaseService.getAvailableJobs(user.id);
-          }
+          // Fetch all available jobs (excluding user's own jobs)
+          const jobs = await SupabaseService.getAvailableJobs(user.id);
           setAvailableJobs(jobs);
+        }
+
+        // Fetch user's applications and schedule
+        const apps = await SupabaseService.getUserApplications(user.id);
+        setUserApplications(apps);
+        
+        // Get jobs for schedule (jobs user applied to)
+        const appliedJobIds = apps.map(app => app.job_id);
+        if (appliedJobIds.length > 0) {
+          const scheduleJobsData = await SupabaseService.getJobsByIds(appliedJobIds);
+          setScheduleJobs(scheduleJobsData);
         }
 
         // Fetch user's jobs
@@ -108,6 +111,77 @@ const Dashboard = () => {
       navigate("/auth");
     }
   }, [user, loading, navigate]);
+
+  // Helper functions for schedule status
+  const getTargetDate = (job: any) => {
+    try {
+      const dateStr = job.scheduled_date;
+      const timeStr = job.scheduled_time || '00:00';
+      return new Date(`${dateStr}T${timeStr}:00`);
+    } catch {
+      return null;
+    }
+  };
+
+  const parseDurationToMinutes = (duration: string | undefined) => {
+    if (!duration) return 60; // default 1h
+    const lower = duration.toLowerCase();
+    const matchNum = lower.match(/(\d+)\s*hour/);
+    if (matchNum) return parseInt(matchNum[1], 10) * 60;
+    if (lower.includes('half day')) return 4 * 60;
+    if (lower.includes('full day')) return 8 * 60;
+    if (lower.includes('multiple days')) return 24 * 60;
+    return 60;
+  };
+
+  const getEndDate = (job: any) => {
+    const start = getTargetDate(job);
+    if (!start) return null;
+    const mins = parseDurationToMinutes(job.duration);
+    return new Date(start.getTime() + mins * 60000);
+  };
+
+  const getScheduleStatus = (job: any) => {
+    const end = getEndDate(job);
+    if (!end) return 'pending';
+    return new Date().getTime() >= end.getTime() ? 'over' : 'pending';
+  };
+
+  const handleApply = async (jobId: string) => {
+    if (!user) return;
+    try {
+      setApplyingMap(m => ({ ...m, [jobId]: true }));
+      const result = await SupabaseService.applyToJob(jobId, user.id);
+      
+      if (!result || !result.application) {
+        toast.error('Failed to apply to job. Please try again.');
+        return;
+      }
+
+      const employerLabel = result.employer ? 
+        `${result.employer.name ?? 'Employer'} (${result.employer.id})` : 
+        'Employer';
+      toast.success(`Application sent to ${employerLabel}.`);
+
+      // Refresh applications and schedule
+      const apps = await SupabaseService.getUserApplications(user.id);
+      setUserApplications(apps);
+      
+      const appliedJobIds = apps.map(app => app.job_id);
+      if (appliedJobIds.length > 0) {
+        const scheduleJobsData = await SupabaseService.getJobsByIds(appliedJobIds);
+        setScheduleJobs(scheduleJobsData);
+      }
+
+      // Remove from available jobs
+      setAvailableJobs(jobs => jobs.filter(j => j.id !== jobId));
+    } catch (e) {
+      console.error(e);
+      toast.error('Something went wrong while applying.');
+    } finally {
+      setApplyingMap(m => ({ ...m, [jobId]: false }));
+    }
+  };
 
   const handleSignOut = async () => {
     const { error } = await signOut();
@@ -279,10 +353,11 @@ const Dashboard = () => {
 
           {/* Main Content Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="jobs">My Jobs</TabsTrigger>
               <TabsTrigger value="available">Available Jobs</TabsTrigger>
+              <TabsTrigger value="schedule">Schedule</TabsTrigger>
             </TabsList>
 
             {/* Overview Tab */}
@@ -503,12 +578,99 @@ const Dashboard = () => {
                           </div>
                           <div className="text-right space-y-2">
                             <p className="text-lg font-semibold">₹{job.amount}</p>
-                            <Button size="sm">Apply</Button>
+                            <Button 
+                              size="sm" 
+                              onClick={() => handleApply(job.id)} 
+                              disabled={!!applyingMap[job.id]}
+                            >
+                              {applyingMap[job.id] ? 'Applying...' : 'Apply'}
+                            </Button>
                           </div>
                         </div>
                       </CardContent>
                     </Card>
                   ))}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Schedule Tab */}
+            <TabsContent value="schedule" className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">My Schedule</h3>
+                <Badge variant="outline">
+                  {scheduleJobs.length} Applied Jobs
+                </Badge>
+              </div>
+
+              {scheduleJobs.length === 0 ? (
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="font-semibold mb-2">No scheduled jobs</h3>
+                    <p className="text-muted-foreground">
+                      Apply to available jobs to see them in your schedule.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {scheduleJobs.map((job) => {
+                    const status = getScheduleStatus(job);
+                    const endDate = getEndDate(job);
+                    const application = userApplications.find(app => app.job_id === job.id);
+                    
+                    return (
+                      <Card key={job.id}>
+                        <CardContent className="pt-6">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-2">
+                              <h4 className="font-semibold">{job.title}</h4>
+                              <p className="text-sm text-muted-foreground">{job.description}</p>
+                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                <div className="flex items-center gap-1">
+                                  <MapPin className="w-4 h-4" />
+                                  {job.location}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="w-4 h-4" />
+                                  {job.scheduled_date}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Clock className="w-4 h-4" />
+                                  {job.scheduled_time}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Clock className="w-4 h-4" />
+                                  {job.duration}
+                                </div>
+                              </div>
+                              <div className="flex gap-1 mt-2">
+                                {job.required_tags?.map((tag: string) => (
+                                  <Badge key={tag} variant="outline" className="text-xs">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="text-right space-y-2">
+                              <Badge variant={status === 'over' ? 'default' : 'secondary'}>
+                                {status === 'over' ? 'Completed' : 'Pending'}
+                              </Badge>
+                              <p className="text-lg font-semibold">₹{job.amount}</p>
+                              <div className="text-xs text-muted-foreground">
+                                <p>Applied: {application ? new Date(application.applied_at).toLocaleDateString() : 'N/A'}</p>
+                                <p>Status: {application?.status || 'pending'}</p>
+                                {endDate && (
+                                  <p>Ends: {endDate.toLocaleString()}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
             </TabsContent>
