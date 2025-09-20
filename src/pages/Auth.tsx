@@ -5,29 +5,46 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Shield, Users, Briefcase, Phone, MessageSquare } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ArrowLeft, Shield, Users, Briefcase, Mail, Lock, Loader2 } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const Auth = () => {
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [otp, setOtp] = useState("");
-  const [showOtp, setShowOtp] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSignUp, setIsSignUp] = useState(false);
   const [userType, setUserType] = useState<"client" | "worker">("client");
+  const [loading, setLoading] = useState(false);
+  
+  const { signInWithEmail, signUpWithEmail } = useAuthContext();
+  const navigate = useNavigate();
 
-  const handleSendOtp = () => {
-    if (phoneNumber.length === 10) {
-      setShowOtp(true);
-      // Here you would integrate with OTP service
+  const handleAuth = async () => {
+    if (!email || !password) {
+      toast.error("Please fill in all fields");
+      return;
     }
-  };
 
-  const handleVerifyOtp = () => {
-    // Here you would verify OTP and redirect based on user type
-    if (userType === "client") {
-      // Redirect to client dashboard
+    setLoading(true);
+    
+    const { error } = isSignUp 
+      ? await signUpWithEmail(email, password)
+      : await signInWithEmail(email, password);
+    
+    if (error) {
+      toast.error(error.message || "Authentication failed. Please try again.");
+      console.error("Auth error:", error);
     } else {
-      // Redirect to worker onboarding
+      toast.success(isSignUp ? "Account created successfully!" : "Successfully logged in!");
+      // Redirect based on user type
+      if (userType === "client") {
+        navigate("/dashboard");
+      } else {
+        navigate("/worker-onboarding");
+      }
     }
+    setLoading(false);
   };
 
   return (
@@ -104,80 +121,55 @@ const Auth = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Phone className="w-5 h-5" />
-                Sign In / Sign Up
+                <Mail className="w-5 h-5" />
+                {isSignUp ? "Create Account" : "Sign In"}
               </CardTitle>
               <CardDescription>
-                We'll send you an OTP to verify your mobile number
+                {isSignUp ? "Create your account to get started" : "Welcome back! Please sign in to your account"}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {!showOtp ? (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Mobile Number</Label>
-                    <div className="flex">
-                      <div className="px-3 py-2 bg-muted border border-r-0 rounded-l-md text-sm text-muted-foreground">
-                        +91
-                      </div>
-                      <Input
-                        id="phone"
-                        type="tel"
-                        placeholder="Enter 10-digit mobile number"
-                        value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
-                        className="rounded-l-none"
-                        maxLength={10}
-                      />
-                    </div>
-                  </div>
-                  <Button 
-                    onClick={handleSendOtp} 
-                    className="w-full" 
-                    variant={userType === "client" ? "client" : "worker"}
-                    disabled={phoneNumber.length !== 10}
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                    Send OTP
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="otp">Enter OTP</Label>
-                    <Input
-                      id="otp"
-                      type="text"
-                      placeholder="Enter 6-digit OTP"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
-                      maxLength={6}
-                      className="text-center text-lg tracking-widest"
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      OTP sent to +91 {phoneNumber}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Button 
-                      onClick={handleVerifyOtp} 
-                      className="w-full" 
-                      variant={userType === "client" ? "client" : "worker"}
-                      disabled={otp.length !== 6}
-                    >
-                      <Shield className="w-4 h-4" />
-                      Verify & Continue
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      onClick={() => setShowOtp(false)}
-                      className="w-full"
-                    >
-                      Change Number
-                    </Button>
-                  </div>
-                </>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter your email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+
+              <Button 
+                onClick={handleAuth} 
+                className="w-full" 
+                variant={userType === "client" ? "default" : "secondary"}
+                disabled={!email || !password || loading}
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                {loading ? (isSignUp ? "Creating Account..." : "Signing In...") : (isSignUp ? "Create Account" : "Sign In")}
+              </Button>
+
+              <div className="text-center">
+                <Button 
+                  variant="ghost" 
+                  onClick={() => setIsSignUp(!isSignUp)}
+                  className="text-sm"
+                >
+                  {isSignUp ? "Already have an account? Sign in" : "Don't have an account? Sign up"}
+                </Button>
+              </div>
 
               <div className="text-center text-xs text-muted-foreground">
                 By continuing, you agree to our Terms of Service and Privacy Policy

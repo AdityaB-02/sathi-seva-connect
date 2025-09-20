@@ -1,8 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowRight, Smartphone, Download } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const CTASection = () => {
+  const navigate = useNavigate();
+
+  const handleGetStarted = () => {
+    navigate("/auth");
+  };
+
   return (
     <section className="w-full py-16 md:py-24 gradient-hero relative overflow-hidden">
       <div className="container-mobile sm:container-tablet lg:container-desktop relative z-10">
@@ -28,9 +35,10 @@ const CTASection = () => {
                   variant="secondary" 
                   size="xl" 
                   className="w-full sm:w-auto bg-white text-primary hover:bg-white/90 shadow-xl hover:shadow-2xl transition-all duration-300"
+                  onClick={handleGetStarted}
                 >
                   <Download className="w-5 h-5" />
-                  Get the App
+                  Get Started
                 </Button>
                 <Button 
                   variant="outline" 
