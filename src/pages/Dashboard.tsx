@@ -27,6 +27,8 @@ import {
   Plus
 } from "lucide-react";
 import { toast } from "sonner";
+import { JobCreationForm } from "@/components/JobCreationForm";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 const Dashboard = () => {
   const { user, loading, signOut } = useAuthContext();
@@ -36,6 +38,7 @@ const Dashboard = () => {
   const [availableJobs, setAvailableJobs] = useState<any[]>([]);
   const [myJobs, setMyJobs] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
+  const [showJobCreationModal, setShowJobCreationModal] = useState(false);
 
   // Fetch user profile and jobs data
   useEffect(() => {
@@ -102,6 +105,24 @@ const Dashboard = () => {
     } else {
       toast.success("Signed out successfully");
       navigate("/");
+    }
+  };
+
+  const handleJobCreated = async (jobData: any) => {
+    try {
+      await SupabaseService.createJob({
+        ...jobData,
+        client_id: user.id
+      });
+      toast.success("Job created successfully!");
+      setShowJobCreationModal(false);
+      
+      // Refresh jobs data
+      const userJobs = await SupabaseService.getUserJobs(user.id);
+      setMyJobs(userJobs);
+    } catch (error) {
+      console.error("Error creating job:", error);
+      toast.error("Failed to create job. Please try again.");
     }
   };
 
@@ -302,12 +323,26 @@ const Dashboard = () => {
                     <CardDescription>Manage your account and jobs</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
+                    <Dialog open={showJobCreationModal} onOpenChange={setShowJobCreationModal}>
+                      <DialogTrigger asChild>
+                        <Button className="w-full justify-start" variant="default">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create New Job
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>Create New Job</DialogTitle>
+                        </DialogHeader>
+                        <JobCreationForm onJobCreated={handleJobCreated} />
+                      </DialogContent>
+                    </Dialog>
                     <Button 
                       className="w-full justify-start" 
                       variant="outline"
                       onClick={() => navigate("/profile")}
                     >
-                      <Plus className="w-4 h-4 mr-2" />
+                      <User className="w-4 h-4 mr-2" />
                       Update Skills
                     </Button>
                     <Button className="w-full justify-start" variant="outline">

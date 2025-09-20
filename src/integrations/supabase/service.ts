@@ -28,13 +28,32 @@ export class SupabaseService {
       return data;
     } catch (err) {
       console.error('Exception in getUserProfile:', err);
+      // Create or update user profile
+      const profileData = {
+        user_id: userId,
+      };
+      return SupabaseService.createOrUpdateProfile(profileData);
+    }
+  }
+
+  static async createOrUpdateProfile(profileData: any) {
+    const { data, error } = await (supabase as any)
+      .from('user_profiles')
+      .upsert(profileData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating/updating profile:', error);
       return null;
     }
+
+    return data;
   }
 
   static async createUserProfile(profile: Partial<UserProfile>): Promise<UserProfile | null> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('user_profiles')
         .insert(profile)
         .select()
@@ -71,6 +90,22 @@ export class SupabaseService {
       console.error('Exception in updateUserProfile:', err);
       return null;
     }
+  }
+
+  static async updateProfile(userId: string, updates: any) {
+    const { data, error } = await (supabase as any)
+      .from('user_profiles')
+      .update(updates)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating profile:', error);
+      return null;
+    }
+
+    return data;
   }
 
   // Job Operations
@@ -115,43 +150,55 @@ export class SupabaseService {
     }
   }
 
-  static async getUserJobs(userId: string): Promise<Job[]> {
-    try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('*')
-        .or(`client_id.eq.${userId},worker_id.eq.${userId}`)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching user jobs:', error);
-        return [];
-      }
-
-      return data || [];
-    } catch (err) {
-      console.error('Exception in getUserJobs:', err);
-      return [];
-    }
-  }
-
-  static async createJob(job: Partial<Job>): Promise<Job | null> {
+  // Get user jobs (jobs applied to or created by user)
+  static async getUserJobs(userId: string) {
     const { data, error } = await supabase
       .from('jobs')
-      .insert(job)
+      .select('*')
+      .or(`client_id.eq.${userId},worker_id.eq.${userId}`)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching user jobs:', error);
+      throw error;
+    }
+
+    return data || [];
+  }
+
+  // Create a new job
+  static async createJob(jobData: {
+    title: string;
+    description: string;
+    location: string;
+    amount: number;
+    duration?: string;
+    scheduled_date: string;
+    scheduled_time?: string;
+    required_tags: string[];
+    client_id: string;
+  }) {
+    const { data, error } = await (supabase as any)
+      .from('jobs')
+      .insert([{
+        ...jobData,
+        status: 'open',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }])
       .select()
       .single();
 
     if (error) {
       console.error('Error creating job:', error);
-      return null;
+      throw error;
     }
 
     return data;
   }
 
-  static async updateJob(jobId: string, updates: Partial<Job>): Promise<Job | null> {
-    const { data, error } = await supabase
+  static async updateJob(jobId: string, updates: any) {
+    const { data, error } = await (supabase as any)
       .from('jobs')
       .update(updates)
       .eq('id', jobId)
@@ -160,26 +207,6 @@ export class SupabaseService {
 
     if (error) {
       console.error('Error updating job:', error);
-      return null;
-    }
-
-    return data;
-  }
-
-  // Job Application Operations
-  static async applyToJob(jobId: string, workerId: string, message?: string): Promise<JobApplication | null> {
-    const { data, error } = await supabase
-      .from('job_applications')
-      .insert({
-        job_id: jobId,
-        worker_id: workerId,
-        message: message || null
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error applying to job:', error);
       return null;
     }
 
