@@ -9,6 +9,8 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import WorkerOnboarding from "./pages/WorkerOnboarding";
+import ProfileUpdate from "./pages/ProfileUpdate";
+import DatabaseTest from "./pages/DatabaseTest";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +35,12 @@ const App = () => (
                 <WorkerOnboarding />
               </ProtectedRoute>
             } />
+            <Route path="/profile" element={
+              <ProtectedRoute>
+                <ProfileUpdate />
+              </ProtectedRoute>
+            } />
+            <Route path="/db-test" element={<DatabaseTest />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
