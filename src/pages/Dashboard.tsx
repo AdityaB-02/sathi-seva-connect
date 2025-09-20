@@ -71,8 +71,19 @@ const Dashboard = () => {
           const jobs = await SupabaseService.getJobsByUserSkills(profile.skills);
           setAvailableJobs(jobs);
         } else {
-          // If no skills, fetch all available jobs
-          const jobs = await SupabaseService.getAvailableJobs();
+          // Fetch available jobs (excluding user's own jobs)
+          let jobs = [];
+          if (profile?.city || profile?.locality) {
+            // Get jobs in same locality if location is available
+            jobs = await SupabaseService.getJobsInSameLocality(
+              user.id, 
+              profile.city || '', 
+              profile.locality || ''
+            );
+          } else {
+            // Fallback to all available jobs (excluding own)
+            jobs = await SupabaseService.getAvailableJobs(user.id);
+          }
           setAvailableJobs(jobs);
         }
 

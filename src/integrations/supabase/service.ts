@@ -39,13 +39,16 @@ export class SupabaseService {
   static async createOrUpdateProfile(profileData: any) {
     const { data, error } = await (supabase as any)
       .from('user_profiles')
-      .upsert(profileData)
+      .upsert(profileData, { 
+        onConflict: 'user_id',
+        ignoreDuplicates: false 
+      })
       .select()
       .single();
 
     if (error) {
       console.error('Error creating/updating profile:', error);
-      return null;
+      throw error;
     }
 
     return data;
@@ -109,13 +112,20 @@ export class SupabaseService {
   }
 
   // Job Operations
-  static async getAvailableJobs(): Promise<Job[]> {
+  static async getAvailableJobs(currentUserId?: string): Promise<Job[]> {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('jobs')
         .select('*')
-        .eq('status', 'available')
+        .eq('status', 'open')
         .order('created_at', { ascending: false });
+
+      // Exclude jobs created by the current user
+      if (currentUserId) {
+        query = query.neq('client_id', currentUserId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching available jobs:', error);
@@ -129,12 +139,73 @@ export class SupabaseService {
     }
   }
 
+  // Get jobs in same locality (excluding user's own jobs)
+  static async getJobsInSameLocality(currentUserId: string, userCity: string, userLocality: string) {
+    try {
+      // First get all jobs excluding user's own
+      const { data: jobs, error: jobsError } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('status', 'open')
+        .neq('client_id', currentUserId)
+        .order('created_at', { ascending: false });
+
+      if (jobsError) {
+        console.error('Error fetching jobs:', jobsError);
+        return [];
+      }
+
+      // Get client profiles for these jobs
+      const clientIds = jobs?.map(job => job.client_id) || [];
+      if (clientIds.length === 0) return [];
+
+      const { data: profiles, error: profilesError } = await supabase
+        .from('user_profiles')
+        .select('user_id, city, locality')
+        .in('user_id', clientIds);
+
+      if (profilesError) {
+        console.error('Error fetching client profiles:', profilesError);
+        return jobs || [];
+      }
+
+      // Filter jobs by same city/locality
+      const localJobs = (jobs || []).filter(job => {
+        const clientProfile = profiles?.find(p => p.user_id === job.client_id);
+        if (!clientProfile) return false;
+        
+        // Match by city and locality
+        return (
+          clientProfile.city?.toLowerCase() === userCity?.toLowerCase() ||
+          clientProfile.locality?.toLowerCase() === userLocality?.toLowerCase()
+        );
+      });
+
+      return localJobs;
+    } catch (err) {
+      console.error('Exception in getJobsInSameLocality:', err);
+      return [];
+    }
+  }
+
+  private static calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
   static async getJobsByUserSkills(userSkills: string[]): Promise<Job[]> {
     try {
       const { data, error } = await supabase
         .from('jobs')
         .select('*')
-        .eq('status', 'available')
+        .eq('status', 'open')
         .overlaps('required_tags', userSkills)
         .order('created_at', { ascending: false });
 

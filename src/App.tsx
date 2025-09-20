@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import Profile from "./pages/Profile";
 import WorkerOnboarding from "./pages/WorkerOnboarding";
 import ProfileUpdate from "./pages/ProfileUpdate";
 import DatabaseTest from "./pages/DatabaseTest";
@@ -37,7 +38,7 @@ const App = () => (
             } />
             <Route path="/profile" element={
               <ProtectedRoute>
-                <ProfileUpdate />
+                <Profile />
               </ProtectedRoute>
             } />
             <Route path="/db-test" element={<DatabaseTest />} />
